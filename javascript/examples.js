@@ -86,7 +86,7 @@ function example() {
 				//case kid
 				new IfNode("try reach kid", "runAfterKid", new IfNode("reasonableAnswer", new CompletedNode(), new ActionNode("bring to station")),new CompletedNode()),
 				// case buddy
-				new SequencerNode("Bobby actions",[ new ActionNode("go drink with buddy", "drinkBuddy"),new ActionNode("go sleep", "goSleep") ] )
+				new RandomNode("Bobby actions",[ new ActionNode("go drink with buddy", "drinkBuddy"),new ActionNode("go sleep", "goSleep") ] )
 			]
 );
 /*

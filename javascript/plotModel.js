@@ -338,17 +338,12 @@ function SequencerNode(name, actionArray) {
 /**
  * This is a cool extension of selector that executes randomly one of the actions in the array.
  */
-function SelectorRandomNode(actionArray) {
+function RandomNode(name, actionArray) {
 
+	this.name = name;
 	this.actionArray = actionArray;
 
 	this.execute = function (plotState) {
-
-		var state = plotState.findStateForNode(this);
-
-		if (state == PlotState.STATE_EXECUTING)
-			return;
-
 
 		var randomIndex = Math.floor(Math.random() * actionArray.length);
 
