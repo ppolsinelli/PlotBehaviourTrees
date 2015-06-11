@@ -56,30 +56,23 @@ function PlotState(plotTree, numberOfLoops) {
 	};
 
 	//commodity methods
+	this.executing = function () {
+		this.setState(PlotState.STATE_EXECUTING);
+	};
+
 	this.hasToStart = function () {
 		var state = this.findStateForNode(this.currentNode);
-		return state != PlotState.STATE_EXECUTING && state != PlotState.STATE_COMPUTE_RESULT;
+		return state == PlotState.STATE_TO_BE_STARTED;
 	};
 
-	this.hasToComplete = function () {
-		var state = this.findStateForNode(this.currentNode);
-		return state == PlotState.STATE_COMPUTE_RESULT;
-	};
+	this.complete = function (result) {
 
-	this.completedAsync = function () {
+		if(typeof result != "undefined")
+			this.nodeResult = result;
 
-		if(!this.currentNode)
-			return false;
+		console.debug("this.complete ",this.nodeResult);
 
-		if ( this.currentNode.isConditional())
 			this.setState(PlotState.STATE_COMPUTE_RESULT);
-		else
-			this.setState(PlotState.STATE_COMPLETED);
-	};
-
-	this.waitUntil = function (callback) {
-		this.setState(PlotState.STATE_EXECUTING);
-		callback();
 	};
 
 	/**
@@ -115,8 +108,6 @@ function PlotState(plotTree, numberOfLoops) {
 	 this.currentNode.execute(this);
 
 	};
-
-
 
 
 	// This is a recursive function, does a lot of work in few lines of code.
@@ -229,7 +220,7 @@ function CompletedNode() {
 function IfNode(name, conditionFunction, actionIfTrue, actionIfFalse) {
 
 	this.name = name;
-	this.conditionFunction = conditionFunction;
+	this.action = conditionFunction;
 	this.actionIfTrue = actionIfTrue;
 	this.actionIfFalse = actionIfFalse;
 
@@ -242,21 +233,11 @@ function IfNode(name, conditionFunction, actionIfTrue, actionIfFalse) {
 
 		var state = plotState.findStateForNode(this);
 
-		console.debug(this.name,state)
-
 		if (state == null)
 			plotState.setState(PlotState.STATE_TO_BE_STARTED, this);
 
-/*
-		else if(state == PlotState.STATE_TO_BE_STARTED)
-			plotState.setState(PlotState.STATE_EXECUTING, this);
-
-*/
-
 		if (state == PlotState.STATE_COMPUTE_RESULT){
 			plotState.setState(PlotState.STATE_WAITING, this);
-
-			console.debug("3 ", plotState.nodeResult)
 
 			if (plotState.nodeResult) {
 				plotState.setState(PlotState.STATE_TO_BE_STARTED, this.actionIfTrue);
@@ -282,34 +263,31 @@ function IfNode(name, conditionFunction, actionIfTrue, actionIfFalse) {
  * This is a cool extension of selector that takes a condition function returning the index of the action to be executed.
  * This allows to compact a set of nested conditions in a more readable one.
  */
-function SelectorArrayNode(conditionFunction, actionArray) {
+function IfArrayNode(name, conditionFunction, actionArray) {
 
-	this.conditionFunction = conditionFunction;
+	this.name = name;
+	this.action = conditionFunction;
 	this.actionArray = actionArray;
 
 	this.execute = function (plotState) {
 
 		var state = plotState.findStateForNode(this);
 
-		if (state == PlotState.STATE_EXECUTING)
-			return;
+		if (state == null)
+			plotState.setState(PlotState.STATE_TO_BE_STARTED, this);
 
-		//			In both cases Sync and Async
-		var resultInt;
-		if(this.conditionFunction instanceof IfNode){
-			resultInt = this.conditionFunction.execute(plotState);
-		} else {
-			resultInt = this.conditionFunction(plotState);
-		}
+		console.debug("plotState.nodeResult",state, plotState.nodeResult)
 
-		if(state == PlotState.STATE_EXECUTING)
-			return;
 
-		for (var j = 0; j < this.actionArray.length; j++) {
-			if (j == resultInt)
-				plotState.setState(PlotState.STATE_TO_BE_STARTED, this.actionArray[j]);
-			else
-				plotState.setState(PlotState.STATE_DISCARDED, this.actionArray[j]);
+		if (state == PlotState.STATE_COMPUTE_RESULT) {
+			plotState.setState(PlotState.STATE_WAITING, this);
+
+			for (var j = 0; j < this.actionArray.length; j++) {
+				if (j == plotState.nodeResult)
+					plotState.setState(PlotState.STATE_TO_BE_STARTED, this.actionArray[j]);
+				else
+					plotState.setState(PlotState.STATE_DISCARDED, this.actionArray[j]);
+			}
 		}
 
 	};
@@ -330,11 +308,14 @@ function SelectorArrayNode(conditionFunction, actionArray) {
 /**
  * This is a selector that executes all actions in sequence.
  */
-function SequencerNode(actionArray) {
+function SequencerNode(name, actionArray) {
 
+	this.name = name;
 	this.actionArray = actionArray;
 
 	this.execute = function (plotState) {
+
+		var state = plotState.findStateForNode(this);
 
 		plotState.setState(PlotState.STATE_WAITING);
 

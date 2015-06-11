@@ -25,7 +25,6 @@ var totalKidsWondering = 20;
 
 function example() {
 
-
 	/**
 	 * This is what makes all your behaviour trees instances run. (implement your own tick)
 	 */
@@ -34,26 +33,21 @@ function example() {
 
 			plotStateInstance.tellMe();
 
-			console.debug("2 ", plotStateInstance.nodeResult)
-
-
 			var currentNode = plotStateInstance.currentNode;
 			var currentState = plotStateInstance.findStateForNode(currentNode);
 
-			console.debug(plotStateInstance, currentNode, currentState);
+			if(plotStateInstance.hasToStart()){
 
-			if(currentState == PlotState.STATE_TO_BE_STARTED){
+				plotStateInstance.executing();
 
-				console.debug("AAAAAAAAA")
-
-				plotStateInstance.setState(PlotState.STATE_EXECUTING)
 				writeOnConsole(currentNode.name, currentNode.action, plotStateInstance.findStateForNode(currentNode));
 
 				setTimeout(function(){
-					plotStateInstance.setState(PlotState.STATE_COMPUTE_RESULT);
-					plotStateInstance.nodeResult = Math.random() > 0.49 ? true : false;
+					if(plotStateInstance.currentNode.action == "takeALook")
+						plotStateInstance.complete(Math.random() > 10.49 ? 0 : 1);
+					else
+						plotStateInstance.complete(Math.random() > 10.49 ? true : false);
 
-					console.debug("1 ", plotStateInstance.nodeResult);
 					writeOnConsole(currentNode.name, currentNode.action, plotStateInstance.findStateForNode(currentNode));
 
 				}, 3000)
@@ -62,7 +56,6 @@ function example() {
 
 /*
 			if ("who is in sight" == plotState.node.action) {
-
 
 				plotStateInstance.setState
 
@@ -76,14 +69,25 @@ function example() {
 		}, 1000);
 	}
 
+/*
 	var ptPoliceman = new IfNode(
 			"who is in sight",
-
 			"takeALook",
-							//case kid
+				//case kid
 				new IfNode("try reach kid", "runAfterKid", new IfNode("reasonableAnswer", new CompletedNode(), new ActionNode("bring to station")),new CompletedNode()),
 				// case buddy
-				new ActionNode("go drink with buddy", "drinkBuddy")
+				new SequencerNode("Bobby actions",[ new ActionNode("go drink with buddy", "drinkBuddy"),new ActionNode("go sleep", "goSleep") ] )
+
+);
+*/
+	var ptPoliceman = new IfArrayNode(
+			"who is in sight",
+			"takeALook",[
+				//case kid
+				new IfNode("try reach kid", "runAfterKid", new IfNode("reasonableAnswer", new CompletedNode(), new ActionNode("bring to station")),new CompletedNode()),
+				// case buddy
+				new SequencerNode("Bobby actions",[ new ActionNode("go drink with buddy", "drinkBuddy"),new ActionNode("go sleep", "goSleep") ] )
+			]
 );
 /*
 	var ptPoliceman = new IfNode(
