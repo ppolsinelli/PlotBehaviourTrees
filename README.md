@@ -1,4 +1,4 @@
-# PlotBehaviourTrees
+# Plot Behaviour Trees
 A simple framework for events and behaviour trees.
 
 This framework is designed to facilitate defining a narrative and behaviour for non player characters, 
