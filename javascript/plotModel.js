@@ -16,7 +16,7 @@
  */
 
 
-function PlotManager(plotTree, numberOfLoops) {
+function PlotState(plotTree, numberOfLoops) {
 
 	if (typeof numberOfLoops == "undefined")
 		numberOfLoops = 1;
@@ -26,6 +26,8 @@ function PlotManager(plotTree, numberOfLoops) {
 	this.currentNode = null;
 	this.numberOfLoops = numberOfLoops;
 
+	this.nodeResult = null;
+	
 	this.numberOfRuns = 0;
 	this.finished = false;
 
@@ -56,12 +58,12 @@ function PlotManager(plotTree, numberOfLoops) {
 	//commodity methods
 	this.hasToStart = function () {
 		var state = this.findStateForNode(this.currentNode);
-		return state != BehaviourTreeInstance.STATE_EXECUTING && state != BehaviourTreeInstance.STATE_COMPUTE_RESULT;
+		return state != PlotState.STATE_EXECUTING && state != PlotState.STATE_COMPUTE_RESULT;
 	};
 
 	this.hasToComplete = function () {
 		var state = this.findStateForNode(this.currentNode);
-		return state == BehaviourTreeInstance.STATE_COMPUTE_RESULT;
+		return state == PlotState.STATE_COMPUTE_RESULT;
 	};
 
 	this.completedAsync = function () {
@@ -70,13 +72,13 @@ function PlotManager(plotTree, numberOfLoops) {
 			return false;
 
 		if ( this.currentNode.isConditional())
-			this.setState(BehaviourTreeInstance.STATE_COMPUTE_RESULT);
+			this.setState(PlotState.STATE_COMPUTE_RESULT);
 		else
-			this.setState(BehaviourTreeInstance.STATE_COMPLETED);
+			this.setState(PlotState.STATE_COMPLETED);
 	};
 
 	this.waitUntil = function (callback) {
-		this.setState(BehaviourTreeInstance.STATE_EXECUTING);
+		this.setState(PlotState.STATE_EXECUTING);
 		callback();
 	};
 
@@ -87,29 +89,30 @@ function PlotManager(plotTree, numberOfLoops) {
 	 *
 	 * The same node may be called to execute twice, once for starting it and on a subsequent tick for completion.
 	 */
-	this.tellMe  = function (forceState) {
+	this.tellMe  = function (result, forceNodeName) {
+
+		if(result)
+			this.nodeResult = result;
 
 		if (this.finished)
 			return;
 
 		//find current node to be executed, or a running one, or root to launch, or root completed
-		this.currentNode = this.findCurrentNode(this.behaviourTree);
+		this.currentNode = this.findCurrentNode(this.plotTree);
 
 		if (this.currentNode == null) {
 			this.numberOfRuns++;
 			if (this.numberOfLoops == 0 || this.numberOfRuns < this.numberOfLoops) {
 				this.nodeAndState = [];
-				this.currentNode = this.findCurrentNode(this.behaviourTree);
+				this.currentNode = this.findCurrentNode(this);
 			} else {
 
 				this.finished = true;
-
 				return;
 			}
 		}
 
-		var state = this.findStateForNode(this.currentNode);
-
+	 this.currentNode.execute(this);
 
 	};
 
@@ -124,17 +127,17 @@ function PlotManager(plotTree, numberOfLoops) {
 
 		var state = this.findStateForNode(node);
 
-		if (state == BehaviourTreeInstance.STATE_DISCARDED)
+		if (state == PlotState.STATE_DISCARDED)
 			return null;
 
 		if (state == null) {
-			state = this.setState(BehaviourTreeInstance.STATE_TO_BE_STARTED, node);
+			state = this.setState(PlotState.STATE_TO_BE_STARTED, node);
 		}
 
 		if (
-                state == BehaviourTreeInstance.STATE_EXECUTING ||
-				state == BehaviourTreeInstance.STATE_COMPUTE_RESULT ||
-				state == BehaviourTreeInstance.STATE_TO_BE_STARTED
+        state == PlotState.STATE_EXECUTING ||
+				state == PlotState.STATE_COMPUTE_RESULT ||
+				state == PlotState.STATE_TO_BE_STARTED
 				)
 			return node;
 
@@ -152,8 +155,8 @@ function PlotManager(plotTree, numberOfLoops) {
 					return childNode;
 			}
 
-			if (state == BehaviourTreeInstance.STATE_WAITING) {
-				this.setState(BehaviourTreeInstance.STATE_COMPLETED, node);
+			if (state == PlotState.STATE_WAITING) {
+				this.setState(PlotState.STATE_COMPLETED, node);
 			}
 		}
 
@@ -161,73 +164,71 @@ function PlotManager(plotTree, numberOfLoops) {
 	};
 }
 
-BehaviourTreeInstance.STATE_TO_BE_STARTED = "STATE_TO_BE_STARTED";
-BehaviourTreeInstance.STATE_WAITING = "STATE_WAITING";
-BehaviourTreeInstance.STATE_DISCARDED = "STATE_DISCARDED";
-BehaviourTreeInstance.STATE_EXECUTING = "STATE_EXECUTING";
-BehaviourTreeInstance.STATE_COMPUTE_RESULT = "STATE_COMPUTE_RESULT";
-BehaviourTreeInstance.STATE_COMPLETED = "STATE_COMPLETED";
+PlotState.STATE_TO_BE_STARTED = "STATE_TO_BE_STARTED";
+PlotState.STATE_WAITING = "STATE_WAITING";
+PlotState.STATE_DISCARDED = "STATE_DISCARDED";
+PlotState.STATE_EXECUTING = "STATE_EXECUTING";
+PlotState.STATE_COMPUTE_RESULT = "STATE_COMPUTE_RESULT";
+PlotState.STATE_COMPLETED = "STATE_COMPLETED";
 
-function PlotState(node, state) {
-    this.node = node;
-    this.state = state;
-}
 
-// Action model and implementation - BEGIN
-/**
- * This simply creates a wrapper node for any specific action.
- * The wrapper is necessary in order to have a uniform "execute"
- * method to be called by the engine.
- */
-function ActionNode(action) {
+
+
+// ActionNode model and implementation - BEGIN
+
+function ActionNode(name, action) {
+	
+	this.name = name;
 	this.action = action;
 
-	this.execute = function (behaviourTreeInstanceState) {
-		return this.action(behaviourTreeInstanceState);
+
+	this.execute = function (plotState) {
+		
+		var state = plotState.findStateForNode(this);
+
+		console.debug(this.name,state)
+
+		if (state == null)
+			plotState.setState(PlotState.STATE_TO_BE_STARTED, this);
+/*
+		else
+			plotState.setState(PlotState.STATE_EXECUTING, this);
+*/
+
+		if (state == PlotState.STATE_COMPUTE_RESULT)
+			plotState.setState(PlotState.STATE_COMPLETED, this);
+
 	};
 
 	this.children = function () {
 		return null;
 	};
 
-	this.isConditional = function () {
-		return false;
+}
+
+function CompletedNode() {
+	
+	this.execute = function (plotState) {
+
+		plotState.setState(PlotState.STATE_COMPLETED, this);
+		plotState.finished = true;
+	};
+
+	this.children = function () {
+		return null;
 	};
 
 }
 // Action model and implementation - END
-
 
 // IfNode model and implementation - BEGIN
-/**
- * This node is required on Selector nodes that are ruled by a logic.
- * You may also omit it and pass directly the method, will work anyway.
- */
-function IfNode(action) {
-	this.action = action;
-
-	this.execute = function (behaviourTreeInstanceState) {
-		return this.action(behaviourTreeInstanceState);
-	};
-
-	this.children = function () {
-		return null;
-	};
-
-	this.isConditional = function () {
-		return true;
-	};
-
-}
-// Action model and implementation - END
-
-// selector model and implementation - BEGIN
 /**
  * This models the "selector" behaviour on two alternative conditions
  * You use this function in configuring your actor behaviour.
  */
-function SelectorNode(conditionFunction, actionIfTrue, actionIfFalse) {
+function IfNode(name, conditionFunction, actionIfTrue, actionIfFalse) {
 
+	this.name = name;
 	this.conditionFunction = conditionFunction;
 	this.actionIfTrue = actionIfTrue;
 	this.actionIfFalse = actionIfFalse;
@@ -237,42 +238,41 @@ function SelectorNode(conditionFunction, actionIfTrue, actionIfFalse) {
 	 * This function is used by the engine executeBehaviourTree
 	 * when a node of type SelectorNode is met
 	 */
-	this.execute = function (behaviourTreeInstanceState) {
+	this.execute = function (plotState) {
 
-		var state = behaviourTreeInstanceState.findStateForNode(this);
+		var state = plotState.findStateForNode(this);
 
-		if (state == BehaviourTreeInstance.STATE_EXECUTING)
-			return;
+		console.debug(this.name,state)
 
-		//			In both cases Sync and Async
-		var result;
-		if(this.conditionFunction instanceof IfNode){
-			result = this.conditionFunction.execute(behaviourTreeInstanceState);
-		} else {
-			result = this.conditionFunction(behaviourTreeInstanceState);
+		if (state == null)
+			plotState.setState(PlotState.STATE_TO_BE_STARTED, this);
+
+/*
+		else if(state == PlotState.STATE_TO_BE_STARTED)
+			plotState.setState(PlotState.STATE_EXECUTING, this);
+
+*/
+
+		if (state == PlotState.STATE_COMPUTE_RESULT){
+			plotState.setState(PlotState.STATE_WAITING, this);
+
+			console.debug("3 ", plotState.nodeResult)
+
+			if (plotState.nodeResult) {
+				plotState.setState(PlotState.STATE_TO_BE_STARTED, this.actionIfTrue);
+				plotState.setState(PlotState.STATE_DISCARDED, this.actionIfFalse);
+			} else {
+				plotState.setState(PlotState.STATE_TO_BE_STARTED, this.actionIfFalse);
+				plotState.setState(PlotState.STATE_DISCARDED, this.actionIfTrue);
+			}
+
 		}
-//		console.debug("SelectorNode result", result);
-
-		if(state == BehaviourTreeInstance.STATE_EXECUTING)
-			return;
-
-		if (result) {
-			behaviourTreeInstanceState.setState(BehaviourTreeInstance.STATE_TO_BE_STARTED, this.actionIfTrue);
-			behaviourTreeInstanceState.setState(BehaviourTreeInstance.STATE_DISCARDED, this.actionIfFalse);
-		} else {
-			behaviourTreeInstanceState.setState(BehaviourTreeInstance.STATE_TO_BE_STARTED, this.actionIfFalse);
-			behaviourTreeInstanceState.setState(BehaviourTreeInstance.STATE_DISCARDED, this.actionIfTrue);
-		}
-
 	};
 
-	this.children = function () {
-		return [this.actionIfTrue, this.actionIfFalse];
-	};
+		this.children = function () {
+			return [this.actionIfTrue, this.actionIfFalse];
+		};
 
-	this.isConditional = function () {
-		return true;
-	};
 }
 // selector model and implementation - END
 
@@ -287,29 +287,29 @@ function SelectorArrayNode(conditionFunction, actionArray) {
 	this.conditionFunction = conditionFunction;
 	this.actionArray = actionArray;
 
-	this.execute = function (behaviourTreeInstanceState) {
+	this.execute = function (plotState) {
 
-		var state = behaviourTreeInstanceState.findStateForNode(this);
+		var state = plotState.findStateForNode(this);
 
-		if (state == BehaviourTreeInstance.STATE_EXECUTING)
+		if (state == PlotState.STATE_EXECUTING)
 			return;
 
 		//			In both cases Sync and Async
 		var resultInt;
 		if(this.conditionFunction instanceof IfNode){
-			resultInt = this.conditionFunction.execute(behaviourTreeInstanceState);
+			resultInt = this.conditionFunction.execute(plotState);
 		} else {
-			resultInt = this.conditionFunction(behaviourTreeInstanceState);
+			resultInt = this.conditionFunction(plotState);
 		}
 
-		if(state == BehaviourTreeInstance.STATE_EXECUTING)
+		if(state == PlotState.STATE_EXECUTING)
 			return;
 
 		for (var j = 0; j < this.actionArray.length; j++) {
 			if (j == resultInt)
-				behaviourTreeInstanceState.setState(BehaviourTreeInstance.STATE_TO_BE_STARTED, this.actionArray[j]);
+				plotState.setState(PlotState.STATE_TO_BE_STARTED, this.actionArray[j]);
 			else
-				behaviourTreeInstanceState.setState(BehaviourTreeInstance.STATE_DISCARDED, this.actionArray[j]);
+				plotState.setState(PlotState.STATE_DISCARDED, this.actionArray[j]);
 		}
 
 	};
@@ -334,11 +334,11 @@ function SequencerNode(actionArray) {
 
 	this.actionArray = actionArray;
 
-	this.execute = function (behaviourTreeInstanceState) {
+	this.execute = function (plotState) {
 
-		behaviourTreeInstanceState.setState(BehaviourTreeInstance.STATE_WAITING);
+		plotState.setState(PlotState.STATE_WAITING);
 
-		behaviourTreeInstanceState.setState(BehaviourTreeInstance.STATE_TO_BE_STARTED, actionArray[0]);
+		plotState.setState(PlotState.STATE_TO_BE_STARTED, actionArray[0]);
 	};
 
 	this.children = function () {
@@ -361,23 +361,23 @@ function SelectorRandomNode(actionArray) {
 
 	this.actionArray = actionArray;
 
-	this.execute = function (behaviourTreeInstanceState) {
+	this.execute = function (plotState) {
 
-		var state = behaviourTreeInstanceState.findStateForNode(this);
+		var state = plotState.findStateForNode(this);
 
-		if (state == BehaviourTreeInstance.STATE_EXECUTING)
+		if (state == PlotState.STATE_EXECUTING)
 			return;
 
 
 		var randomIndex = Math.floor(Math.random() * actionArray.length);
 
-		behaviourTreeInstanceState.setState(BehaviourTreeInstance.STATE_WAITING, this);
+		plotState.setState(PlotState.STATE_WAITING, this);
 
 		for (var j = 0; j < actionArray.length; j++) {
 			if (j == randomIndex)
-				behaviourTreeInstanceState.setState(BehaviourTreeInstance.STATE_TO_BE_STARTED, actionArray[j]);
+				plotState.setState(PlotState.STATE_TO_BE_STARTED, actionArray[j]);
 			else
-				behaviourTreeInstanceState.setState(BehaviourTreeInstance.STATE_DISCARDED, actionArray[j]);
+				plotState.setState(PlotState.STATE_DISCARDED, actionArray[j]);
 		}
 	};
 
@@ -405,23 +405,23 @@ function SelectorWeightedRandomNode(weightsActionMap) {
 
 	this.weightsActionMap = weightsActionMap;
 
-	this.execute = function (behaviourTreeInstanceState) {
+	this.execute = function (plotState) {
 
-		var state = behaviourTreeInstanceState.findStateForNode(this);
+		var state = plotState.findStateForNode(this);
 
-		if (state == BehaviourTreeInstance.STATE_EXECUTING)
+		if (state == PlotState.STATE_EXECUTING)
 			return;
 
 		var action = chooseByRandom(this.weightsActionMap);
 		//console.debug("randomIndex", this.weightsActionMap, action);
 
-		behaviourTreeInstanceState.setState(BehaviourTreeInstance.STATE_WAITING, this);
+		plotState.setState(PlotState.STATE_WAITING, this);
 
 		for (var j = 0; j < this.weightsActionMap.length; j++) {
 			if (this.weightsActionMap[j][1] == action)
-				behaviourTreeInstanceState.setState(BehaviourTreeInstance.STATE_TO_BE_STARTED, action);
+				plotState.setState(PlotState.STATE_TO_BE_STARTED, action);
 			else
-				behaviourTreeInstanceState.setState(BehaviourTreeInstance.STATE_DISCARDED, this.weightsActionMap[j][1]);
+				plotState.setState(PlotState.STATE_DISCARDED, this.weightsActionMap[j][1]);
 		}
 	};
 
@@ -457,23 +457,23 @@ function SelectorRandomProbabilityNode(probabilityActionMap) {
 
 	this.weightsActionMap = probabilityActionMap;
 
-	this.execute = function (behaviourTreeInstanceState) {
+	this.execute = function (plotState) {
 
-		var state = behaviourTreeInstanceState.findStateForNode(this);
+		var state = plotState.findStateForNode(this);
 
-		if (state == BehaviourTreeInstance.STATE_EXECUTING)
+		if (state == PlotState.STATE_EXECUTING)
 			return;
 
 
 		var action = chooseByProbability(this.weightsActionMap);
 
-		behaviourTreeInstanceState.setState(BehaviourTreeInstance.STATE_WAITING, this);
+		plotState.setState(PlotState.STATE_WAITING, this);
 
 		for (var j = 0; j < this.weightsActionMap.length; j++) {
 			if (this.weightsActionMap[j][1] == action)
-				behaviourTreeInstanceState.setState(BehaviourTreeInstance.STATE_TO_BE_STARTED, action);
+				plotState.setState(PlotState.STATE_TO_BE_STARTED, action);
 			else
-				behaviourTreeInstanceState.setState(BehaviourTreeInstance.STATE_DISCARDED, this.weightsActionMap[j][1]);
+				plotState.setState(PlotState.STATE_DISCARDED, this.weightsActionMap[j][1]);
 		}
 	};
 
@@ -500,12 +500,12 @@ function SequencerRandomNode(actionArray) {
 
 	this.actionArray = actionArray;
 
-	this.execute = function (behaviourTreeInstanceState) {
+	this.execute = function (plotState) {
 		shuffle(actionArray);
 
-		behaviourTreeInstanceState.setState(BehaviourTreeInstance.STATE_WAITING);
+		plotState.setState(PlotState.STATE_WAITING);
 
-		behaviourTreeInstanceState.setState(BehaviourTreeInstance.STATE_TO_BE_STARTED, actionArray[0]);
+		plotState.setState(PlotState.STATE_TO_BE_STARTED, actionArray[0]);
 
 	};
 

@@ -26,58 +26,101 @@ var totalKidsWondering = 20;
 function example() {
 
 
-    /**
-     * This is what makes all your behaviour trees instances run. (implement your own tick)
-     */
-    function tick(plotManagerInstance, actor) {
-        var tick = setInterval(function () {
+	/**
+	 * This is what makes all your behaviour trees instances run. (implement your own tick)
+	 */
+	function tick(plotStateInstance, actor) {
+		var tick = setInterval(function () {
 
-            var plotState = plotManagerInstance.tellMe();
+			plotStateInstance.tellMe();
 
-            if ("who is in sight" == plotState.node.action) {
+			console.debug("2 ", plotStateInstance.nodeResult)
 
 
-                plotManagerInstance.setState
+			var currentNode = plotStateInstance.currentNode;
+			var currentState = plotStateInstance.findStateForNode(currentNode);
 
-            }
+			console.debug(plotStateInstance, currentNode, currentState);
 
-            if (behaviourTreeInstance.finished) {
-                writeOnConsole(behaviourTreeInstance.actor.name + " has finished.");
-                clearTimeout(tick);
-            }
-        }, 100);
-    }
+			if(currentState == PlotState.STATE_TO_BE_STARTED){
 
-    var ptPoliceman = new IfArrayNode(
-        "who is in sight",
-        [
-            //case kid
-            new IfAsyncNode("try reach kid",  new IfNode("reasonableAnswer",PlotManager.COMPLETED, new ActionAsyncNode("bring to station")),PlotManager.COMPLETED),
-            // case buddy
-            new ActionAsyncNode("go drink with buddy"),
-            //no one
-            PlotManager.COMPLETED
-        ]
-    );
+				console.debug("AAAAAAAAA")
 
-    var ptSocialWorker = new IfArrayNode(
-        "who is in sight",
-        [
-            //case kid
-            new IfAsyncNode("try reach kid",  new IfNode("reasonableAnswer",PlotManager.COMPLETED, new ActionAsyncNode("bring home")),PlotManager.COMPLETED),
-            // case buddy
-            new ActionAsyncNode("go smoke with buddy"),
-            //no one
-            PlotManager.COMPLETED
-        ]
-    );
+				plotStateInstance.setState(PlotState.STATE_EXECUTING)
+				writeOnConsole(currentNode.name, currentNode.action, plotStateInstance.findStateForNode(currentNode));
 
-    var policeman1 = {};
-    policeman1.name = "Bobby";
-    policeman1.haveBeenChasing = 0;
+				setTimeout(function(){
+					plotStateInstance.setState(PlotState.STATE_COMPUTE_RESULT);
+					plotStateInstance.nodeResult = Math.random() > 0.49 ? true : false;
 
-    var plotManagerPoliceInstance = new PlotManager(ptPoliceman,5);
-    tick(plotManagerPoliceInstance,policeman1);
+					console.debug("1 ", plotStateInstance.nodeResult);
+					writeOnConsole(currentNode.name, currentNode.action, plotStateInstance.findStateForNode(currentNode));
+
+				}, 3000)
+
+			}
+
+/*
+			if ("who is in sight" == plotState.node.action) {
+
+
+				plotStateInstance.setState
+
+			}
+*/
+
+			if (plotStateInstance.finished) {
+				writeOnConsole(actor.name + " has finished.");
+				clearTimeout(tick);
+			}
+		}, 1000);
+	}
+
+	var ptPoliceman = new IfNode(
+			"who is in sight",
+
+			"takeALook",
+							//case kid
+				new IfNode("try reach kid", "runAfterKid", new IfNode("reasonableAnswer", new CompletedNode(), new ActionNode("bring to station")),new CompletedNode()),
+				// case buddy
+				new ActionNode("go drink with buddy", "drinkBuddy")
+);
+/*
+	var ptPoliceman = new IfNode(
+			"who is in sight",
+			[
+				//case kid
+				new IfNode("try reach kid", "runAfterKid", new IfNode("reasonableAnswer", new CompletedNode(), new ActionNode("bring to station")),new CompletedNode()),
+				// case buddy
+				new ActionNode("go drink with buddy", "drinkBuddy"),
+				//no one
+				new CompletedNode()
+]
+);
+*/
+
+/*
+	var ptSocialWorker = new IfArrayNode(
+			"who is in sight",
+			[
+				//case kid
+				new IfAsyncNode("try reach kid",  new IfNode("reasonableAnswer",PlotManager.COMPLETED, new ActionAsyncNode("bring home")),new CompletedNode()),
+				// case buddy
+				new ActionAsyncNode("go smoke with buddy"),
+				//no one
+				new CompletedNode()
+			]
+	);
+*/
+
+	var policeman1 = {};
+	policeman1.name = "Bobby";
+	policeman1.haveBeenChasing = 0;
+
+	console.debug("bbb")
+
+	var plotManagerPoliceInstance = new PlotState(ptPoliceman,1);
+	tick(plotManagerPoliceInstance,policeman1);
 
 
 }
